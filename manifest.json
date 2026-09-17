@@ -1,0 +1,10 @@
+{
+  "display_name": "АрⅤ播放器",
+  "loading_order": 100,
+  "requires": [],
+  "optional": [],
+  "js": "index.js",
+  "author": "ApvGiselle",
+  "version": "9.0.0",
+  "auto_update": true
+}
