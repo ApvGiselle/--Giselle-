@@ -276,8 +276,7 @@
     container.id = CONFIG.ID;
     container.style.cssText = `
         position: fixed; top: 0; left: 0;
-        width: 100%; height: 100dvh;
-        min-width: 100%; min-height: 100dvh;
+        width: 0; height: 0;
         overflow: visible; pointer-events: none; z-index: ${CONFIG.Z_INDEX};
     `;
     targetDoc.body.appendChild(container);
@@ -335,10 +334,11 @@
             border: 1px solid var(--fm-border); 
             border-radius: var(--fm-radius-panel);
             box-shadow: 0 10px 30px var(--fm-shadow); display: flex; flex-direction: column;
-            opacity: 0; transform: scale(0.8) translateY(20px); pointer-events: none;
+            opacity: 0; visibility: hidden; transform: scale(0.8) translateY(20px); pointer-events: none;
             transition: var(--fm-transition); z-index: 5; overflow: hidden;
+            will-change: auto;
         }
-        .fm-panel.open { opacity: 1; transform: scale(1) translateY(0); pointer-events: auto; }
+        .fm-panel.open { opacity: 1; visibility: visible; transform: scale(1) translateY(0); pointer-events: auto; will-change: transform, opacity; }
 
         .fm-header { display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--fm-border); cursor: move; }
         .fm-cover-mock { width: 44px; height: 44px; border-radius: var(--fm-radius-btn); background: var(--fm-border); display: flex; justify-content: center; align-items: center; color: var(--fm-text-sub); font-size: 18px; margin-right: 12px; flex-shrink: 0; transition: var(--fm-transition); }
@@ -1480,7 +1480,7 @@
         
         UI.title.textContent = track.title;
         UI.artist.textContent = track.artist;
-        renderListUI();
+        if (STATE.isExpanded) renderListUI();
 
         audio.pause(); audio.src = '';
         STATE.lyricsData = []; UI.outLyrics.innerHTML = ''; UI.outLyricsScrollList.innerHTML = ''; STATE.lastActiveLrcIndex = -1;
