@@ -1,6 +1,5 @@
 (async function () {
-    // 单例保护：SillyTavern 扩展生命周期发生重复注入时，不要重新创建播放器。
-    // 重复执行会重新解析歌单、创建大量 DOM、注册事件，从而拖慢切换角色/加载聊天。
+    // 获取宿主环境 document
     let targetDoc = document;
     let targetWin = window;
     try {
@@ -14,12 +13,9 @@
             targetDoc = window.parent.document;
             targetWin = window.parent;
         }
-    } catch (e) {}
-
-    if (targetWin.__ARV_TERMINAL_PLAYER_RUNNING__) {
-        return;
+    } catch (e) {
+        console.warn("[АрⅤ] 跨域限制，降级至当前环境。");
     }
-    targetWin.__ARV_TERMINAL_PLAYER_RUNNING__ = true;
 
     // ================= 核心配置 =================
     const CONFIG = {
@@ -273,12 +269,15 @@
     };
 
     // ================= UI 构建 =================
-    // 单例已在入口处处理，这里不再删除现有播放器 DOM，避免重复加载时造成页面抖动。
+    const oldContainer = targetDoc.getElementById(CONFIG.ID);
+    if (oldContainer) oldContainer.remove();
+
     const container = targetDoc.createElement('div');
     container.id = CONFIG.ID;
     container.style.cssText = `
         position: fixed; top: 0; left: 0;
-        width: 0; height: 0;
+        width: 100%; height: 100dvh;
+        min-width: 100%; min-height: 100dvh;
         overflow: visible; pointer-events: none; z-index: ${CONFIG.Z_INDEX};
     `;
     targetDoc.body.appendChild(container);
@@ -327,7 +326,6 @@
         }
 
         .fm-panel {
-            contain: layout paint;
             position: absolute; 
             width: clamp(300px, 90vw, 400px);
             max-width: calc(100vw - 40px);
@@ -337,12 +335,10 @@
             border: 1px solid var(--fm-border); 
             border-radius: var(--fm-radius-panel);
             box-shadow: 0 10px 30px var(--fm-shadow); display: flex; flex-direction: column;
-            opacity: 0; visibility: hidden; transform: scale(0.8) translateY(20px); pointer-events: none;
+            opacity: 0; transform: scale(0.8) translateY(20px); pointer-events: none;
             transition: var(--fm-transition); z-index: 5; overflow: hidden;
-            will-change: auto;
-            content-visibility: auto;
         }
-        .fm-panel.open { opacity: 1; visibility: visible; transform: scale(1) translateY(0); pointer-events: auto; will-change: transform, opacity; }
+        .fm-panel.open { opacity: 1; transform: scale(1) translateY(0); pointer-events: auto; }
 
         .fm-header { display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--fm-border); cursor: move; }
         .fm-cover-mock { width: 44px; height: 44px; border-radius: var(--fm-radius-btn); background: var(--fm-border); display: flex; justify-content: center; align-items: center; color: var(--fm-text-sub); font-size: 18px; margin-right: 12px; flex-shrink: 0; transition: var(--fm-transition); }
@@ -407,7 +403,7 @@
         .fm-playlist::-webkit-scrollbar { width: 4px; }
         .fm-playlist::-webkit-scrollbar-thumb { background: var(--fm-border); border-radius: 2px; }
         
-        .fm-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; cursor: pointer; transition: background 0.2s; content-visibility: auto; contain: layout paint style; contain-intrinsic-size: 42px; }
+        .fm-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; cursor: pointer; transition: background 0.2s; }
         .fm-item:hover { background: var(--fm-border); }
         .fm-item.active { background: var(--fm-border); border-left: 3px solid var(--fm-accent); }
         .fm-item-info { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 2px; }
@@ -551,7 +547,7 @@
         .fm-brand { display:flex; align-items:center; min-width:0; }
         .fm-app-name { font-size:15px; font-weight:700; color:var(--fm-text-main); }
         .fm-app-sub { margin-top:2px; font-size:9px; letter-spacing:.16em; color:var(--fm-text-sub); }
-        .fm-pages { flex:1 1 auto; min-height:0; overflow:hidden; position:relative; contain: layout paint; }
+        .fm-pages { flex:1 1 auto; min-height:0; overflow:hidden; position:relative; }
         .fm-page { display:none; height:100%; min-height:0; overflow-y:auto; overflow-x:hidden; padding:8px 16px 18px; box-sizing:border-box; scrollbar-width:thin; }
         .fm-page::-webkit-scrollbar { width: 4px; }
         .fm-page::-webkit-scrollbar-thumb { background: var(--fm-border); border-radius: 2px; }
@@ -1011,8 +1007,7 @@
         const currentSize = parseInt(savedSettings.ballSize) || 50;
         
         if (STATE.isExpanded) {
-            applySettings();
-            renderListUI(); 
+            applySettings(); 
             
             // 使用实际 CSS 宽度，避免小屏 max-width 与 JS 估算不一致。
             const panelWidth = Math.min(UI.panel.offsetWidth || 400, targetWin.innerWidth - CONFIG.SAFE_MARGIN * 2);
@@ -1316,8 +1311,7 @@
 
     function renderListUI() {
         renderTabs();
-        UI.playlistEl.replaceChildren();
-        const fragment = targetDoc.createDocumentFragment();
+        UI.playlistEl.innerHTML = '';
         
         if (STATE.isShowingSearch) {
             const header = targetDoc.createElement('div');
@@ -1327,11 +1321,10 @@
                 STATE.isShowingSearch = false;
                 renderListUI();
             };
-            fragment.appendChild(header);
+            UI.playlistEl.appendChild(header);
 
             if (STATE.searchResults.length === 0) {
                 UI.playlistEl.innerHTML += '<div style="padding:16px;text-align:center;color:var(--fm-text-sub);font-size:12px;">未找到相关歌曲</div>';
-                UI.playlistEl.appendChild(fragment);
                 return;
             }
 
@@ -1348,7 +1341,7 @@
                     </div>
                 `;
                 item.querySelector('.fm-icon-btn').onclick = (e) => showAddMenu(e, track, 'add');
-                fragment.appendChild(item);
+                UI.playlistEl.appendChild(item);
             });
         } else {
             const currentListObj = getCurrentPlaylist();
@@ -1356,7 +1349,6 @@
 
             if (currentTracks.length === 0) {
                 UI.playlistEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--fm-text-sub);font-size:12px;">列表为空，请导入或搜索</div>';
-                UI.playlistEl.appendChild(fragment);
                 return;
             }
 
@@ -1396,11 +1388,10 @@
                     }
                 };
             }
-            fragment.appendChild(header);
+            UI.playlistEl.appendChild(header);
 
             if (listToRender.length === 0) {
                 UI.playlistEl.innerHTML += '<div style="padding:16px;text-align:center;color:var(--fm-text-sub);font-size:12px;">未找到匹配的歌曲</div>';
-                UI.playlistEl.appendChild(fragment);
                 return;
             }
 
@@ -1431,9 +1422,8 @@
                         playTrack(index, currentListObj.id);
                     }
                 });
-                fragment.appendChild(item);
+                UI.playlistEl.appendChild(item);
             });
-            UI.playlistEl.appendChild(fragment);
         }
     }
 
@@ -1490,7 +1480,7 @@
         
         UI.title.textContent = track.title;
         UI.artist.textContent = track.artist;
-        if (STATE.isExpanded) renderListUI();
+        renderListUI();
 
         audio.pause(); audio.src = '';
         STATE.lyricsData = []; UI.outLyrics.innerHTML = ''; UI.outLyricsScrollList.innerHTML = ''; STATE.lastActiveLrcIndex = -1;
@@ -2406,6 +2396,8 @@
     // ================= 初始化 =================
     initDraggable();
     initProgressBar();
+    renderListUI(); 
+    
     if (startupDedupeCount > 0 || startupLimitCount > 0) {
         let msg = `[优化] 启动清理完成：`;
         if (startupDedupeCount > 0) msg += `移除 ${startupDedupeCount} 首重复歌曲。`;
@@ -2413,8 +2405,14 @@
         API.toast(msg);
     }
     
-    // 播放器只通过扩展菜单打开，不向酒馆全局事件系统注册额外监听器。
-    // 这样可以避免全局按钮事件在聊天/角色切换过程中产生无关回调。
+    targetWin._flowMusicToggle = () => {
+        savedSettings.showBall = savedSettings.showBall === false;
+        applySettings();
+    };
+
+    if (typeof eventOn === 'function' && typeof getButtonEvent === 'function') {
+        eventOn(getButtonEvent('显隐播放器'), targetWin._flowMusicToggle);
+    }
 
     // SillyTavern 的输入框扩展菜单（扳手/魔法棒菜单）只需要放一个入口，
     // 点击入口后打开播放器自己的完整面板，不把播放器 UI 塞进菜单。
@@ -2432,7 +2430,7 @@
         clearTimeout(settingsSaveTimer);
         const c = targetDoc.getElementById(CONFIG.ID);
         if (c) c.remove();
-        delete targetWin.__ARV_TERMINAL_PLAYER_RUNNING__;
+        delete targetWin._flowMusicToggle;
     });
 
 })();
