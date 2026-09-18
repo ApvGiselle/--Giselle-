@@ -1,5 +1,6 @@
 (async function () {
-    // 获取宿主环境 document
+    // 单例保护：SillyTavern 扩展生命周期发生重复注入时，不要重新创建播放器。
+    // 重复执行会重新解析歌单、创建大量 DOM、注册事件，从而拖慢切换角色/加载聊天。
     let targetDoc = document;
     let targetWin = window;
     try {
@@ -13,9 +14,12 @@
             targetDoc = window.parent.document;
             targetWin = window.parent;
         }
-    } catch (e) {
-        console.warn("[АрⅤ] 跨域限制，降级至当前环境。");
+    } catch (e) {}
+
+    if (targetWin.__ARV_TERMINAL_PLAYER_RUNNING__) {
+        return;
     }
+    targetWin.__ARV_TERMINAL_PLAYER_RUNNING__ = true;
 
     // ================= 核心配置 =================
     const CONFIG = {
@@ -269,9 +273,7 @@
     };
 
     // ================= UI 构建 =================
-    const oldContainer = targetDoc.getElementById(CONFIG.ID);
-    if (oldContainer) oldContainer.remove();
-
+    // 单例已在入口处处理，这里不再删除现有播放器 DOM，避免重复加载时造成页面抖动。
     const container = targetDoc.createElement('div');
     container.id = CONFIG.ID;
     container.style.cssText = `
@@ -2411,14 +2413,8 @@
         API.toast(msg);
     }
     
-    targetWin._flowMusicToggle = () => {
-        savedSettings.showBall = savedSettings.showBall === false;
-        applySettings();
-    };
-
-    if (typeof eventOn === 'function' && typeof getButtonEvent === 'function') {
-        eventOn(getButtonEvent('显隐播放器'), targetWin._flowMusicToggle);
-    }
+    // 播放器只通过扩展菜单打开，不向酒馆全局事件系统注册额外监听器。
+    // 这样可以避免全局按钮事件在聊天/角色切换过程中产生无关回调。
 
     // SillyTavern 的输入框扩展菜单（扳手/魔法棒菜单）只需要放一个入口，
     // 点击入口后打开播放器自己的完整面板，不把播放器 UI 塞进菜单。
@@ -2436,7 +2432,7 @@
         clearTimeout(settingsSaveTimer);
         const c = targetDoc.getElementById(CONFIG.ID);
         if (c) c.remove();
-        delete targetWin._flowMusicToggle;
+        delete targetWin.__ARV_TERMINAL_PLAYER_RUNNING__;
     });
 
 })();
