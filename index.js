@@ -110,7 +110,7 @@
         ballSize: 50, customColor: '#4a90e2', bgImage: '', bgImageWidth: 0, bgImageHeight: 0, 
         bgBlur: 10, bgBrightness: 70, lrcMode: 'popup', lrcFont: 16, lrcBottom: 80, 
         panelRatio: 'default', shapeStyle: 'round', theme: 'adaptive',
-        nowCoverImage: '', nowPlayingLabel: 'NOW PLAYING'
+        nowCoverImage: '', nowPlayingLabel: 'NOW PLAYING', showBall: true
     };
     try {
         const s = localStorage.getItem(CONFIG.SETTINGS_KEY);
@@ -536,6 +536,7 @@
         .fm-lrc-mode-btn.active { color: var(--fm-accent); border-color: var(--fm-accent); }
         .fm-lrc-settings-row input[type=range] { flex: 1; accent-color: var(--fm-accent); }
         .force-hide { display: none !important; }
+        .ball-hidden .fm-ball { display: none !important; }
 
         .fm-page-play .fm-play-lyrics-settings { margin-top:2px; }
         .fm-page-play .fm-play-lyrics-settings .fm-lrc-settings-panel.open, .fm-page-more .fm-play-lyrics-settings .fm-lrc-settings-panel.open { display:flex; padding:8px 0 4px; border-top:0; }
@@ -601,6 +602,13 @@
         .fm-bg-btn { flex:1; height:34px; border:0; border-radius:10px; background:rgba(0,0,0,.05); color:var(--fm-text-main); cursor:pointer; font-size:10px; }
         .fm-range-with-icon { display:flex; align-items:center; gap:8px; flex:1; }
         .fm-range-with-icon i { width:12px; color:var(--fm-text-sub); font-size:10px; }
+        .fm-switch { position:relative; width:42px; height:24px; flex:0 0 auto; display:inline-block; }
+        .fm-switch input { opacity:0; width:0; height:0; position:absolute; }
+        .fm-switch-slider { position:absolute; inset:0; cursor:pointer; border-radius:999px; background:rgba(0,0,0,.12); transition:.2s ease; }
+        .fm-switch-slider::before { content:""; position:absolute; width:18px; height:18px; left:3px; top:3px; border-radius:50%; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.18); transition:.2s ease; }
+        .fm-switch input:checked + .fm-switch-slider { background:var(--fm-accent); }
+        .fm-switch input:checked + .fm-switch-slider::before { transform:translateX(18px); }
+
         .fm-bottom-nav { display:grid; grid-template-columns:repeat(2,1fr); gap:4px; padding:8px 8px max(8px, env(safe-area-inset-bottom)); border-top:0; background:rgba(0,0,0,.02); flex:0 0 auto; }
         .fm-nav-btn { min-width:0; height:44px; border:0; border-radius:13px; background:transparent; color:var(--fm-text-sub); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; cursor:pointer; font-size:10px; }
         .fm-nav-btn i { font-size:15px; }
@@ -722,6 +730,13 @@
                                 <span>形状</span>
                                 <button class="fm-wide-btn" id="fm-shape-btn"><i class="fas fa-square"></i><span>切换</span></button>
                             </div>
+                        </div>
+                        <div class="fm-more-row">
+                            <span>悬浮球</span>
+                            <label class="fm-switch" title="显示或隐藏悬浮球">
+                                <input type="checkbox" id="fm-ball-visible-toggle">
+                                <span class="fm-switch-slider"></span>
+                            </label>
                         </div>
                     </div>
 
@@ -852,6 +867,7 @@
         sizeSlider: wrapper.querySelector('#fm-size-slider'),
         colorPicker: wrapper.querySelector('#fm-color-picker'),
         shapeBtn: wrapper.querySelector('#fm-shape-btn'),
+        ballVisibleToggle: wrapper.querySelector('#fm-ball-visible-toggle'),
         bgUploadInput: wrapper.querySelector('#fm-bg-upload'),
         bgUploadBtn: wrapper.querySelector('#fm-bg-btn-upload'),
         bgClearBtn: wrapper.querySelector('#fm-bg-btn-clear'),
@@ -2119,6 +2135,8 @@
     const applySettings = (persist = true) => {
 
         UI.wrapper.style.setProperty('--fm-ball-size', `${savedSettings.ballSize}px`);
+        UI.ballVisibleToggle.checked = savedSettings.showBall !== false;
+        UI.wrapper.classList.toggle('ball-hidden', savedSettings.showBall === false);
         UI.wrapper.style.setProperty('--fm-custom-color', savedSettings.customColor);
         
         if (savedSettings.shapeStyle === 'square') {
@@ -2193,6 +2211,11 @@
         savedSettings.ballSize = e.target.value;
         applySettings(false);
         scheduleSettingsSave();
+    };
+
+    UI.ballVisibleToggle.onchange = (e) => {
+        savedSettings.showBall = !!e.target.checked;
+        applySettings();
     };
 
     UI.colorPicker.oninput = (e) => {
@@ -2338,6 +2361,41 @@
         playTrack(failedIndex, STATE.playingPlaylistId, true);
     };
 
+    // ================= SillyTavern 扩展菜单入口 =================
+    function installSillyTavernWandButton() {
+        const doc = targetDoc;
+        if (!doc) return false;
+        const menu = doc.querySelector('#extensionsMenu');
+        if (!menu) return false;
+
+        const old = doc.querySelector('#arv_terminal_wand_container');
+        if (old) old.remove();
+
+        const container = doc.createElement('div');
+        container.id = 'arv_terminal_wand_container';
+        container.className = 'extension_container';
+
+        const item = doc.createElement('div');
+        item.id = 'arvTerminalExtensionMenuItem';
+        item.className = 'list-group-item flex-container flexGap5';
+        item.title = '打开 АрⅤ Terminal 音乐播放器';
+        item.innerHTML = '<div class="fa-fw fa-solid fa-music extensionsMenuExtensionButton"></div><span>АрⅤ播放器</span>';
+
+        item.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!STATE.isExpanded) togglePanel();
+        });
+
+        container.appendChild(item);
+        menu.appendChild(container);
+        return true;
+    }
+
+    function openFromSillyTavernMenu() {
+        if (!STATE.isExpanded) togglePanel();
+    }
+
     // ================= 初始化 =================
     initDraggable();
     initProgressBar();
@@ -2351,16 +2409,21 @@
     }
     
     targetWin._flowMusicToggle = () => {
-        STATE.isVisible = !STATE.isVisible;
-        if (STATE.isVisible) UI.wrapper.classList.remove('force-hide');
-        else {
-            UI.wrapper.classList.add('force-hide');
-            if (STATE.isExpanded) togglePanel();
-        }
+        savedSettings.showBall = savedSettings.showBall === false;
+        applySettings();
     };
 
     if (typeof eventOn === 'function' && typeof getButtonEvent === 'function') {
         eventOn(getButtonEvent('显隐播放器'), targetWin._flowMusicToggle);
+    }
+
+    // SillyTavern 的输入框扩展菜单（扳手/魔法棒菜单）只需要放一个入口，
+    // 点击入口后打开播放器自己的完整面板，不把播放器 UI 塞进菜单。
+    if (!installSillyTavernWandButton()) {
+        const retry = setInterval(() => {
+            if (installSillyTavernWandButton()) clearInterval(retry);
+        }, 500);
+        setTimeout(() => clearInterval(retry), 15000);
     }
 
     targetWin.addEventListener('pagehide', () => {
