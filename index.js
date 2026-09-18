@@ -1796,12 +1796,9 @@
                 }
             }
         }
-        // 普通歌词模式不需要逐帧渲染；由 audio.ontimeupdate 驱动即可。
-        if (savedSettings.lrcMode !== 'plain') {
-            lrcRafId = requestAnimationFrame(updateLyrics);
-        } else {
-            lrcRafId = null;
-        }
+        // 歌词只需要在播放进度更新时检查当前行，不再用 requestAnimationFrame 每帧扫描。
+        // 这样可以避免歌词开启后占满主线程，尤其适合手机端。
+        lrcRafId = null;
     }
 
     // ================= 事件绑定 =================
@@ -2339,7 +2336,7 @@
     };
     audio.ontimeupdate = () => {
         if (!STATE.isSeekingProgress) updateProgressUI(audio.currentTime, audio.duration);
-        if (STATE.isLyricsVisible && savedSettings.lrcMode === 'plain') updateLyrics();
+        if (STATE.isLyricsVisible) updateLyrics();
     };
     audio.onloadedmetadata = () => { if (!STATE.isSeekingProgress) updateProgressUI(audio.currentTime, audio.duration); };
     audio.onerror = () => {
