@@ -325,6 +325,7 @@
         }
 
         .fm-panel {
+            contain: layout paint;
             position: absolute; 
             width: clamp(300px, 90vw, 400px);
             max-width: calc(100vw - 40px);
@@ -337,6 +338,7 @@
             opacity: 0; visibility: hidden; transform: scale(0.8) translateY(20px); pointer-events: none;
             transition: var(--fm-transition); z-index: 5; overflow: hidden;
             will-change: auto;
+            content-visibility: auto;
         }
         .fm-panel.open { opacity: 1; visibility: visible; transform: scale(1) translateY(0); pointer-events: auto; will-change: transform, opacity; }
 
@@ -403,7 +405,7 @@
         .fm-playlist::-webkit-scrollbar { width: 4px; }
         .fm-playlist::-webkit-scrollbar-thumb { background: var(--fm-border); border-radius: 2px; }
         
-        .fm-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; cursor: pointer; transition: background 0.2s; }
+        .fm-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; cursor: pointer; transition: background 0.2s; content-visibility: auto; contain: layout paint style; contain-intrinsic-size: 42px; }
         .fm-item:hover { background: var(--fm-border); }
         .fm-item.active { background: var(--fm-border); border-left: 3px solid var(--fm-accent); }
         .fm-item-info { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 2px; }
@@ -547,7 +549,7 @@
         .fm-brand { display:flex; align-items:center; min-width:0; }
         .fm-app-name { font-size:15px; font-weight:700; color:var(--fm-text-main); }
         .fm-app-sub { margin-top:2px; font-size:9px; letter-spacing:.16em; color:var(--fm-text-sub); }
-        .fm-pages { flex:1 1 auto; min-height:0; overflow:hidden; position:relative; }
+        .fm-pages { flex:1 1 auto; min-height:0; overflow:hidden; position:relative; contain: layout paint; }
         .fm-page { display:none; height:100%; min-height:0; overflow-y:auto; overflow-x:hidden; padding:8px 16px 18px; box-sizing:border-box; scrollbar-width:thin; }
         .fm-page::-webkit-scrollbar { width: 4px; }
         .fm-page::-webkit-scrollbar-thumb { background: var(--fm-border); border-radius: 2px; }
@@ -1007,7 +1009,8 @@
         const currentSize = parseInt(savedSettings.ballSize) || 50;
         
         if (STATE.isExpanded) {
-            applySettings(); 
+            applySettings();
+            renderListUI(); 
             
             // 使用实际 CSS 宽度，避免小屏 max-width 与 JS 估算不一致。
             const panelWidth = Math.min(UI.panel.offsetWidth || 400, targetWin.innerWidth - CONFIG.SAFE_MARGIN * 2);
@@ -1311,7 +1314,8 @@
 
     function renderListUI() {
         renderTabs();
-        UI.playlistEl.innerHTML = '';
+        UI.playlistEl.replaceChildren();
+        const fragment = targetDoc.createDocumentFragment();
         
         if (STATE.isShowingSearch) {
             const header = targetDoc.createElement('div');
@@ -1321,10 +1325,11 @@
                 STATE.isShowingSearch = false;
                 renderListUI();
             };
-            UI.playlistEl.appendChild(header);
+            fragment.appendChild(header);
 
             if (STATE.searchResults.length === 0) {
                 UI.playlistEl.innerHTML += '<div style="padding:16px;text-align:center;color:var(--fm-text-sub);font-size:12px;">未找到相关歌曲</div>';
+                UI.playlistEl.appendChild(fragment);
                 return;
             }
 
@@ -1341,7 +1346,7 @@
                     </div>
                 `;
                 item.querySelector('.fm-icon-btn').onclick = (e) => showAddMenu(e, track, 'add');
-                UI.playlistEl.appendChild(item);
+                fragment.appendChild(item);
             });
         } else {
             const currentListObj = getCurrentPlaylist();
@@ -1349,6 +1354,7 @@
 
             if (currentTracks.length === 0) {
                 UI.playlistEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--fm-text-sub);font-size:12px;">列表为空，请导入或搜索</div>';
+                UI.playlistEl.appendChild(fragment);
                 return;
             }
 
@@ -1388,10 +1394,11 @@
                     }
                 };
             }
-            UI.playlistEl.appendChild(header);
+            fragment.appendChild(header);
 
             if (listToRender.length === 0) {
                 UI.playlistEl.innerHTML += '<div style="padding:16px;text-align:center;color:var(--fm-text-sub);font-size:12px;">未找到匹配的歌曲</div>';
+                UI.playlistEl.appendChild(fragment);
                 return;
             }
 
@@ -1422,8 +1429,9 @@
                         playTrack(index, currentListObj.id);
                     }
                 });
-                UI.playlistEl.appendChild(item);
+                fragment.appendChild(item);
             });
+            UI.playlistEl.appendChild(fragment);
         }
     }
 
@@ -2396,8 +2404,6 @@
     // ================= 初始化 =================
     initDraggable();
     initProgressBar();
-    renderListUI(); 
-    
     if (startupDedupeCount > 0 || startupLimitCount > 0) {
         let msg = `[优化] 启动清理完成：`;
         if (startupDedupeCount > 0) msg += `移除 ${startupDedupeCount} 首重复歌曲。`;
